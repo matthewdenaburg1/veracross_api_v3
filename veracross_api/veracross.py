@@ -12,13 +12,16 @@ See also: https://kiwidamien.github.io/getting-data-with-oauth.html
 __author__ = "Matthew Denaburg"
 
 
-import time
-import requests
+from typing import List
 import base64
+import time
+
+import requests
+from requests_oauthlib import OAuth2Session
 
 
 _TOKEN_URL = "https://accounts.veracross.com/{school_short_name}/oauth/token"
-_DATA_URL = "https://api.veracross.com/{school_short_name}/v3/"
+_DATA_URL = "https://api.veracross.com/{school_short_name}/v3"
 
 
 def base64_encode_string(string: str) -> str:
@@ -32,6 +35,7 @@ class Veracross:
 
     def __init__(self, school_short_name: str, client_id: str,
                  client_secret: str) -> None:
+
         self.rate_limit_remaining = 300
         self.rate_limit_reset = 0
 
@@ -44,6 +48,8 @@ class Veracross:
 
         self.__client_id = client_id
         self.__client_secret = client_secret
+
+        self.session = OAuth2Session(client_id)
 
     def _set_timers(self, limit_remaining: int, limit_reset: int) -> None:
         """
@@ -60,48 +66,48 @@ class Veracross:
         if self.rate_limit_remaining == 1:
             time.sleep(self.rate_limit_reset + 1)
 
-    def _get_token(self):
-        """Get an access token
+    def get_token(self, scope: List[str]):
+        """Get an access token with the specified scopes
 
         :returns: the token
         """
 
         headers = {
-            "Authorization": "Basic " +
-            base64_encode_string(f"{self.__client_id}:{self.__client_secret}"),
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
         }
 
         params = {
-            "grant_type": "client_credentials"
+            "client_id": self.__client_id,
+            "client_secret": self.__client_secret,
+            "grant_type": "client_credentials",
+            "scope": " ".join(scope)
         }
 
-        r = requests.post(_TOKEN_URL, headers=headers, params=params)
+        response = requests.post(self.token_url, headers=headers, params=params)
 
-        self.token = r.json()["access_token"]
+        self.token = response.json()
         return self.token
 
-    def pull(self, endpoint: str, include_value_lists: bool,
-             path_parameters: str, **query_parameters):
-        """Get Veracross data with pagination"""
+    def pull(self, endpoint: str, record_id: int = None, **query_parameters):
+        """Get Veracross data with pagination.
 
-        if self.token is None:
-            self._get_token()
+        If `record_id` is provided, `query_parameters` is ignored.
+
+        :endpoint: which endpoint to pull data from.
+        :record_id: an optional record id to attach to the end of the endpoint.
+        """
 
         headers = {
-            "Authorization": f"Bearer {self.token}"
+            "Authorization": f"Bearer {self.token['access_token']!s}",
+            "X-API-Value-Lists": "include"
         }
 
-        # if we want/need value lists
-        if include_value_lists:
-            headers["X-API-Value-Lists"] = "include"
+        url = f"{self.data_url}/{endpoint}"
+        if isinstance(record_id, int):
+            url = url + f"/{record_id!s}"
 
-        response = requests.get(self.data_url, headers=headers)
-
-        result = {
-            "records": [],
-            "value_lists": {}
-        }
+        response = requests.get(url, headers=headers)
+        result = list()
 
         if response.status_code == 200:
             page = 1
@@ -112,11 +118,15 @@ class Veracross:
                 pages = int(response.headers["X-Total-Count"]) // 100 + 1
 
             while page <= pages:
-                json_data = response.json()
-                data = json_data.get("data", [])
+                data = response.json().get("data")
+                result.append(data)
 
-                if isinstance(data, list):
-                    result["records"].
+                page += 1
+                self._set_timers(response.headers["X-Rate-Limit-Remaining"],
+                                 response.headers["X-Rate-Limit-Reset"])
+                response = None
+
+        return result
 
 
 class VeracrossAPIResult:
