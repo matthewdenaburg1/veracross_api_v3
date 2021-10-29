@@ -13,43 +13,43 @@ __author__ = "Matthew Denaburg"
 
 
 from typing import List
-import base64
 import time
 
 import requests
-from requests_oauthlib import OAuth2Session
 
 
-_TOKEN_URL = "https://accounts.veracross.com/{school_short_name}/oauth/token"
-_DATA_URL = "https://api.veracross.com/{school_short_name}/v3"
-
-
-def base64_encode_string(string: str) -> str:
-    """return a string encoded in base 64"""
-
-    return base64.b64encode(string.encode()).decode()
+_TOKEN_URL = "https://accounts.veracross.com/{}/oauth/token"
+_DATA_URL = "https://api.veracross.com/{}/v3"
 
 
 class Veracross:
     """A Veracross V3 API wrapper."""
 
     def __init__(self, school_short_name: str, client_id: str,
-                 client_secret: str) -> None:
+                 client_secret: str, scope: List[str]) -> None:
 
         self.rate_limit_remaining = 300
         self.rate_limit_reset = 0
 
         self.school_short_name = school_short_name
 
-        self.token_url = _TOKEN_URL.format(school_short_name=school_short_name)
-        self.data_url = _DATA_URL.format(school_short_name=school_short_name)
+        self.token_url = _TOKEN_URL.format(school_short_name)
+        self.data_url = _DATA_URL.format(school_short_name)
 
-        self.token = None
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
 
-        self.__client_id = client_id
-        self.__client_secret = client_secret
+        params = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "client_credentials",
+            "scope": " ".join(scope)
+        }
 
-        self.session = OAuth2Session(client_id)
+        response = requests.post(self.token_url, headers=headers, params=params)
+
+        self.token = response.json()
 
     def _set_timers(self, limit_remaining: int, limit_reset: int) -> None:
         """
@@ -106,25 +106,33 @@ class Veracross:
         if isinstance(record_id, int):
             url = url + f"/{record_id!s}"
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, params=query_parameters)
         result = list()
 
         if response.status_code == 200:
             page = 1
             pages = 1
 
+            print(response.headers)
+            print("current  " + str(int(time.time())), "reset at " +
+                  str(response.headers["x-rate-limit-reset"]), sep="\n")
             # if there are multiple pages
             if "X-Total-Count" in response.headers:
+                print(response.headers["X-Total-Count"])
+
                 pages = int(response.headers["X-Total-Count"]) // 100 + 1
 
             while page <= pages:
+                print(page, pages)
                 data = response.json().get("data")
                 result.append(data)
 
                 page += 1
-                self._set_timers(response.headers["X-Rate-Limit-Remaining"],
-                                 response.headers["X-Rate-Limit-Reset"])
+                self._set_timers(response.headers["x-rate-limit-remaining"],
+                                 response.headers["x-rate-limit-reset"])
                 response = None
+        else:
+            print(response.status_code)
 
         return result
 
@@ -132,7 +140,7 @@ class Veracross:
 class VeracrossAPIResult:
     """   """
 
-    __slots__ = ("fields",)
+    __slots__ = ("fields", "data",)
 
     def __init__(self):
         pass
