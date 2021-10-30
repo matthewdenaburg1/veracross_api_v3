@@ -64,6 +64,7 @@ class Veracross:
         self.rate_limit_reset = int(limit_reset)
 
         if self.rate_limit_remaining == 1:
+            sleep_for = self.rate_limit_reset - int(time.time())
             time.sleep(self.rate_limit_reset + 1)
 
     def get_token(self, scope: List[str]):
