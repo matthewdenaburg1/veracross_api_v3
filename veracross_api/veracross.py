@@ -65,7 +65,7 @@ class Veracross:
 
         if self.rate_limit_remaining == 1:
             sleep_for = self.rate_limit_reset - int(time.time())
-            time.sleep(self.rate_limit_reset + 1)
+            time.sleep(sleep_for)
 
     def get_token(self, scope: List[str]):
         """Get an access token with the specified scopes
@@ -100,7 +100,9 @@ class Veracross:
 
         headers = {
             "Authorization": f"Bearer {self.token['access_token']!s}",
-            "X-API-Value-Lists": "include"
+            "X-API-Value-Lists": "include",
+            "X-Page-Size": "100",
+            "X-Page-Number": "1"
         }
 
         url = f"{self.data_url}/{endpoint}"
@@ -112,28 +114,24 @@ class Veracross:
 
         if response.status_code == 200:
             page = 1
-            pages = 1
 
-            print(response.headers)
-            print("current  " + str(int(time.time())), "reset at " +
-                  str(response.headers["x-rate-limit-reset"]), sep="\n")
-            # if there are multiple pages
-            if "X-Total-Count" in response.headers:
-                print(response.headers["X-Total-Count"])
-
-                pages = int(response.headers["X-Total-Count"]) // 100 + 1
-
-            while page <= pages:
-                print(page, pages)
+            while True:
                 data = response.json().get("data")
-                result.append(data)
+                if len(data) == 1:
+                    result.append(data)
+                    break
+
+                result.extend(data)
+
+                if len(data) < int(headers["X-Page-Size"]):
+                    break
 
                 page += 1
+                headers["X-Page-Number"] = str(page)
                 self._set_timers(response.headers["x-rate-limit-remaining"],
                                  response.headers["x-rate-limit-reset"])
-                response = None
-        else:
-            print(response.status_code)
+                response = requests.get(url, headers=headers,
+                                        params=query_parameters)
 
         return result
 
