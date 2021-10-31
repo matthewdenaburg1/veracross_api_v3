@@ -110,28 +110,38 @@ class Veracross:
             url = url + f"/{record_id!s}"
 
         response = requests.get(url, headers=headers, params=query_parameters)
-        result = list()
 
-        if response.status_code == 200:
-            page = 1
+        if response.status_code != 200:
+            return response.status_code
 
-            while True:
-                data = response.json().get("data")
-                if len(data) == 1:
-                    result.append(data)
-                    break
+        # only retrieve value lists once
+        if "X-API-Value-Lists" in headers:
+            headers.pop("X-API-Value-Lists")
 
-                result.extend(data)
+        result = {
+            "data": [],
+            "value_lists": response.json().get("value_lists")
+        }
+        page = 1
 
-                if len(data) < int(headers["X-Page-Size"]):
-                    break
+        while True:
+            data = response.json().get("data")
+            if len(data) == 1:
+                result["data"].append(data)
+                break
 
-                page += 1
-                headers["X-Page-Number"] = str(page)
-                self._set_timers(response.headers["x-rate-limit-remaining"],
-                                 response.headers["x-rate-limit-reset"])
-                response = requests.get(url, headers=headers,
-                                        params=query_parameters)
+            result["data"].extend(data)
+
+            # if we have fewer results than the requested page size, we're done.
+            if len(data) < int(headers["X-Page-Size"]):
+                break
+
+            page += 1
+            headers["X-Page-Number"] = str(page)
+            self._set_timers(response.headers["x-rate-limit-remaining"],
+                             response.headers["x-rate-limit-reset"])
+            response = requests.get(url, headers=headers,
+                                    params=query_parameters)
 
         return result
 
