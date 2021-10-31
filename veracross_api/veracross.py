@@ -67,28 +67,6 @@ class Veracross:
             sleep_for = self.rate_limit_reset - int(time.time())
             time.sleep(sleep_for)
 
-    def get_token(self, scope: List[str]):
-        """Get an access token with the specified scopes
-
-        :returns: the token
-        """
-
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-
-        params = {
-            "client_id": self.__client_id,
-            "client_secret": self.__client_secret,
-            "grant_type": "client_credentials",
-            "scope": " ".join(scope)
-        }
-
-        response = requests.post(self.token_url, headers=headers, params=params)
-
-        self.token = response.json()
-        return self.token
-
     def pull(self, endpoint: str, record_id: int = None, **query_parameters):
         """Get Veracross data with pagination.
 
@@ -109,10 +87,12 @@ class Veracross:
         if isinstance(record_id, int):
             url = url + f"/{record_id!s}"
 
-        response = requests.get(url, headers=headers, params=query_parameters)
-
-        if response.status_code != 200:
-            return response.status_code
+        try:
+            response = requests.get(url, headers=headers,
+                                    params=query_parameters)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise SystemExit(err)
 
         # only retrieve value lists once
         if "X-API-Value-Lists" in headers:
