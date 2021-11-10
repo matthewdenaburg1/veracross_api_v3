@@ -18,10 +18,6 @@ import time
 import requests
 
 
-_TOKEN_URL = "https://accounts.veracross.com/{}/oauth/token"
-_DATA_URL = "https://api.veracross.com/{}/v3"
-
-
 class Veracross:
     """A Veracross V3 API wrapper."""
 
@@ -33,13 +29,10 @@ class Veracross:
 
         self.school_short_name = school_short_name
 
-        self.token_url = _TOKEN_URL.format(school_short_name)
-        self.data_url = _DATA_URL.format(school_short_name)
-
+        token_url = "https://accounts.veracross.com/{}/oauth/token"
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
         }
-
         params = {
             "client_id": client_id,
             "client_secret": client_secret,
@@ -47,7 +40,14 @@ class Veracross:
             "scope": " ".join(scope)
         }
 
-        response = requests.post(self.token_url, headers=headers, params=params)
+        try:
+            response = requests.post(token_url.format(school_short_name),
+                                     headers=headers, params=params)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            # TODO some sort of log
+            raise SystemExit(f"{response.headers['Status']}: Count not create "
+                             "OAuth2 access token.")
 
         self.token = response.json()
 
@@ -80,10 +80,10 @@ class Veracross:
             "Authorization": f"Bearer {self.token['access_token']!s}",
             "X-API-Value-Lists": "include",
             "X-Page-Size": "100",
-            "X-Page-Number": "1"
         }
 
-        url = f"{self.data_url}/{endpoint}"
+        data_url = f"https://api.veracross.com/{self.school_short_name}/v3"
+        url = f"{data_url}/{endpoint}"
         if isinstance(record_id, int):
             url = url + f"/{record_id!s}"
 
@@ -92,6 +92,7 @@ class Veracross:
                                     params=query_parameters)
             response.raise_for_status()
         except requests.exceptions.HTTPError as err:
+            # TODO some sort of log
             raise SystemExit(err)
 
         # only retrieve value lists once
@@ -102,11 +103,11 @@ class Veracross:
             "data": [],
             "value_lists": response.json().get("value_lists")
         }
-        page = 1
 
+        page = 1
         while True:
             data = response.json().get("data")
-            if len(data) == 1:
+            if isinstance(data, dict):
                 result["data"].append(data)
                 break
 
@@ -116,8 +117,8 @@ class Veracross:
             if len(data) < int(headers["X-Page-Size"]):
                 break
 
-            page += 1
             headers["X-Page-Number"] = str(page)
+            page += 1
             self._set_timers(response.headers["x-rate-limit-remaining"],
                              response.headers["x-rate-limit-reset"])
             response = requests.get(url, headers=headers,
