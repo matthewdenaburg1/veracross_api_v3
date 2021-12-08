@@ -2,3 +2,6 @@
 
 *.json
 *.log
+
+/build/
+/veracross_api_v3.egg-info/
