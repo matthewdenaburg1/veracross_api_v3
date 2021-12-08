@@ -24,9 +24,6 @@ class Veracross:
     def __init__(self, school_short_name: str, client_id: str,
                  client_secret: str, scope: List[str]) -> None:
 
-        self.rate_limit_remaining = 300
-        self.rate_limit_reset = 0
-
         self.school_short_name = school_short_name
 
         token_url = "https://accounts.veracross.com/{}/oauth/token"
@@ -52,33 +49,14 @@ class Veracross:
 
     ###############
 
-    def _set_timers(self, limit_remaining: int, limit_reset: int) -> None:
-        """
-        Sets the rate limits.
-
-        :param limit_remaining: Count of API calls remaining from header
-        X-Rate-Limit-Remaining
-        :param limit_reset: Reset Timer from header X-Rate-Limit-Reset
-        """
-
-        self.rate_limit_remaining = int(limit_remaining)
-        self.rate_limit_reset = int(limit_reset)
-
-        if self.rate_limit_remaining == 1:
-            sleep_for = self.rate_limit_reset - int(time.time())
-            time.sleep(sleep_for)
-
-    ###############
-
     def pull(self, endpoint: str, record_id: int = None, **query_parameters):
         """Get Veracross data with pagination.
 
         If `record_id` is provided, `query_parameters` is ignored.
 
-        :endpoint: which endpoint to pull data from.
-        :record_id: an optional record id to attach to the end of the endpoint.
+        :param endpoint: which endpoint to pull data from.
+        :param record_id: an optional record id to retrieve
         """
-
         headers = {
             "Authorization": f"Bearer {self.token['access_token']!s}",
             "X-API-Value-Lists": "include",
@@ -98,8 +76,10 @@ class Veracross:
 
         try:
             while True:
+                # make a data request
                 response = requests.get(url, headers=headers,
                                         params=query_parameters)
+                # if there was an HTTP error, raise it
                 response.raise_for_status()
 
                 # only retrieve value lists once
@@ -107,6 +87,7 @@ class Veracross:
                     headers.pop("X-API-Value-Lists")
                     result["value_lists"] = response.json().get("value_lists")
 
+                # extract the data as json
                 data = response.json().get("data")
                 if len(data) == 1:
                     result["data"].append(data)
@@ -119,16 +100,21 @@ class Veracross:
                 if len(data) < int(headers["X-Page-Size"]):
                     break
 
+                # increment page size and update header
                 page += 1
                 headers["X-Page-Number"] = str(page)
-                self._set_timers(response.headers["x-rate-limit-remaining"],
-                                 response.headers["x-rate-limit-reset"])
+
+                # make sure we don't flood the api
+                limit_remaining = response.headers.get("x-rate-limit-remaining")
+                if limit_remaining is not None and int(limit_remaining) == 1:
+                    time.sleep(int(response.headers.get("x-rate-limit-reset")) -
+                               int(time.time()))
 
         except requests.exceptions.HTTPError:
-            return result
+            # TODO log that there was an HTTP error
+            pass
 
-        finally:
-            return result
+        return result
 
 
 class VeracrossAPIResult:
