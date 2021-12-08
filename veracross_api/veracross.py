@@ -4,18 +4,17 @@ A Veracross API class for the v3 API
 This class provides an easy interface to the Veracross API for python.
 
 Rate limiting and pagination will be handled automatically.
-
-Based on: https://gist.github.com/kiwidamien/09bb2d4a55c9fb3b265697ba12c1ff8e
-See also: https://kiwidamien.github.io/getting-data-with-oauth.html
 """
 
 __author__ = "Matthew Denaburg"
 
 
-from typing import List
+from typing import List, Dict, NewType
 import time
 
 import requests
+
+StrOrInt = NewType("StrOrInt", [str, int])
 
 
 class Veracross:
@@ -117,10 +116,42 @@ class Veracross:
         return result
 
 
-class VeracrossAPIResult:
-    """   """
+def insert_from_value_list(value_lists, data) -> List[Dict[str, StrOrInt]]:
+    """
+    Iterate through the value list and change any matching fields in `data` to
+    use the value from the value list instead.
+    """
 
-    __slots__ = ("fields", "data",)
+    # first build a better data structure from the value_lists object
+    value_lists_d = dict()
+    for typ in value_lists:
+        obj = dict()
+        # if we have categories, insert them too
+        for item in typ["items"]:
+            if "category" in item:
+                # find the desired category
+                for cat in typ["categories"]:
+                    if item["category"] == cat["id"]:
+                        item["category"] = cat["description"]
 
-    def __init__(self):
-        pass
+            id_ = item.pop("id", None)
+            obj[id_] = item
+
+        # add the items to the new structure
+        for field in typ["fields"]:
+            # value_lists_d[field] = typ["items"]
+            value_lists_d[field] = obj
+
+    # iterate through the data and update the values of keys.
+    for data_point in data:
+        for field, value in data_point.items():
+            # skip the id field
+            if field == "id":
+                continue
+
+            # if the field is something we need to change out
+            if field in value_lists_d:
+                # do so
+                data_point[field] = value_lists_d[field][value]["description"]
+
+    return data
