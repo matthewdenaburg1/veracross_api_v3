@@ -48,8 +48,9 @@ class Veracross:
         }
 
         response = requests.post(self.token_url, headers=headers, params=params)
-
         self.token = response.json()
+
+    ###############
 
     def _set_timers(self, limit_remaining: int, limit_reset: int) -> None:
         """
@@ -66,6 +67,8 @@ class Veracross:
         if self.rate_limit_remaining == 1:
             sleep_for = self.rate_limit_reset - int(time.time())
             time.sleep(sleep_for)
+
+    ###############
 
     def pull(self, endpoint: str, record_id: int = None, **query_parameters):
         """Get Veracross data with pagination.
@@ -87,43 +90,45 @@ class Veracross:
         if isinstance(record_id, int):
             url = url + f"/{record_id!s}"
 
-        try:
-            response = requests.get(url, headers=headers,
-                                    params=query_parameters)
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            raise SystemExit(err)
-
-        # only retrieve value lists once
-        if "X-API-Value-Lists" in headers:
-            headers.pop("X-API-Value-Lists")
-
         result = {
             "data": [],
-            "value_lists": response.json().get("value_lists")
+            "value_lists": None,
         }
         page = 1
 
-        while True:
-            data = response.json().get("data")
-            if len(data) == 1:
-                result["data"].append(data)
-                break
+        try:
+            while True:
+                response = requests.get(url, headers=headers,
+                                        params=query_parameters)
+                response.raise_for_status()
 
-            result["data"].extend(data)
+                # only retrieve value lists once
+                if page == 1 and "X-API-Value-Lists" in headers:
+                    headers.pop("X-API-Value-Lists")
+                    result["value_lists"] = response.json().get("value_lists")
 
-            # if we have fewer results than the requested page size, we're done.
-            if len(data) < int(headers["X-Page-Size"]):
-                break
+                data = response.json().get("data")
+                if len(data) == 1:
+                    result["data"].append(data)
+                    break
 
-            page += 1
-            headers["X-Page-Number"] = str(page)
-            self._set_timers(response.headers["x-rate-limit-remaining"],
-                             response.headers["x-rate-limit-reset"])
-            response = requests.get(url, headers=headers,
-                                    params=query_parameters)
+                result["data"].extend(data)
 
-        return result
+                # if we have fewer results than the requested page size, we're
+                # done.
+                if len(data) < int(headers["X-Page-Size"]):
+                    break
+
+                page += 1
+                headers["X-Page-Number"] = str(page)
+                self._set_timers(response.headers["x-rate-limit-remaining"],
+                                 response.headers["x-rate-limit-reset"])
+
+        except requests.exceptions.HTTPError:
+            return result
+
+        finally:
+            return result
 
 
 class VeracrossAPIResult:
