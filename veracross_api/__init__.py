@@ -1,1 +1,1 @@
-from veracross_api.veracross import Veracross, insert_from_value_list
+from veracross_api.veracross import Veracross

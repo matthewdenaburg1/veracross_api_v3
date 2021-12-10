@@ -21,7 +21,7 @@ class Veracross:
     """A Veracross V3 API wrapper."""
 
     def __init__(self, school_short_name: str, client_id: str,
-                 client_secret: str, scope: List[str]) -> None:
+                 client_secret: str, scopes: List[str]) -> None:
 
         self.school_short_name = school_short_name
 
@@ -33,18 +33,17 @@ class Veracross:
             "client_id": client_id,
             "client_secret": client_secret,
             "grant_type": "client_credentials",
-            "scope": " ".join(scope)
+            "scope": " ".join(scopes)
         }
 
         try:
             response = requests.post(token_url.format(school_short_name),
                                      headers=headers, params=params)
+
             response.raise_for_status()
-            self.token = response.json()
+            self._token = response.json()
         except requests.exceptions.HTTPError:
-            # TODO some sort of log
-            raise SystemExit(f"{response.headers['Status']}: Count not create "
-                             "OAuth2 access token.")
+            raise
 
     ###############
 
@@ -57,7 +56,7 @@ class Veracross:
         :param record_id: an optional record id to retrieve
         """
         headers = {
-            "Authorization": f"Bearer {self.token['access_token']!s}",
+            "Authorization": f"Bearer {self._token['access_token']!s}",
             "X-API-Value-Lists": "include",
             "X-Page-Size": "100",
         }
@@ -113,10 +112,10 @@ class Veracross:
             # TODO log that there was an HTTP error
             pass
 
-        return result
+        return _insert_from_value_list(**result)
 
 
-def insert_from_value_list(value_lists, data) -> List[Dict[str, StrOrInt]]:
+def _insert_from_value_list(value_lists, data) -> List[Dict[str, StrOrInt]]:
     """
     Iterate through the value list and change any matching fields in `data` to
     use the value from the value list instead.
