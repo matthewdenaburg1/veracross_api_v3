@@ -2,7 +2,7 @@ from distutils.core import setup
 from os import path
 
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 this_directory = path.abspath(path.dirname(__file__))
