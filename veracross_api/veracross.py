@@ -121,6 +121,10 @@ def _insert_from_value_list(value_lists, data) -> List[Dict[str, StrOrInt]]:
     use the value from the value list instead.
     """
 
+    # if no data was provided, return an empty list
+    if len(data) == 0:
+        return []
+
     # first build a better data structure from the value_lists object
     value_lists_d = dict()
     for typ in value_lists:
