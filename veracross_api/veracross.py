@@ -9,19 +9,20 @@ Rate limiting and pagination will be handled automatically.
 __author__ = "Matthew Denaburg"
 
 
-from typing import List, Dict, NewType
+from typing import List, Dict, Union
 import time
 
 import requests
 
-StrOrInt = NewType("StrOrInt", [str, int])
+__all__ = ("Veracross",)
 
 
 class Veracross:
-    """A Veracross V3 API wrapper."""
+    """A Veracross V3 API interface. It uses OAuth2."""
 
     def __init__(self, school_short_name: str, client_id: str,
                  client_secret: str, scopes: List[str]) -> None:
+        """Connect to the database."""
 
         self.school_short_name = school_short_name
 
@@ -47,7 +48,8 @@ class Veracross:
 
     ###############
 
-    def pull(self, endpoint: str, record_id: int = None, **query_parameters):
+    def pull(self, endpoint: str, record_id: int = None,
+             **query_parameters) -> List[Dict[str, Union[str, int]]]:
         """Get Veracross data with pagination.
 
         If `record_id` is provided, `query_parameters` is ignored.
@@ -87,10 +89,13 @@ class Veracross:
 
                 # extract the data as json
                 data = response.json().get("data")
-                if len(data) == 1:
-                    result["data"].append(data)
+                # if there's only one result, it returns a dict not a list of
+                # dicts
+                if isinstance(data, dict):
+                    result["data"] = [data]
                     break
 
+                # if we got here, it's a list of dicts
                 result["data"].extend(data)
 
                 # if we have fewer results than the requested page size, we're
@@ -115,7 +120,7 @@ class Veracross:
         return _insert_from_value_list(**result)
 
 
-def _insert_from_value_list(value_lists, data) -> List[Dict[str, StrOrInt]]:
+def _insert_from_value_list(value_lists, data):
     """
     Iterate through the value list and change any matching fields in `data` to
     use the value from the value list instead.
