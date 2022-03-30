@@ -1,6 +1,6 @@
 # Veracross API Python Library
 
-Provides an easy way to pull information from the Veracross' v3 API in Python.
+Provides an easy way to pull information from the Veracross's v3 API in Python.
 
 Rate limiting and pagination will be handled automatically.
 
@@ -11,7 +11,7 @@ information.
 
 Clone the package and `cd` into the directory you downloaded to.
 ```bash
-git clone https://bitbucket.org/ssfs_tech/veracross_api_v3
+git clone https://github.com/matthewdenaburg1/veracross_api_v3.git
 cd /path/to/download/directory
 ```
 
@@ -24,7 +24,6 @@ pip3 install .
 
 ```python
 import json
-import sys
 import veracross_api
 
 school_short_name = "short"
@@ -39,9 +38,6 @@ data = v.pull("students")
 # save the data
 with open("students.sample.json", "w") as data_out:
     json.dump(data, data_out)
-
-# print
-json.dump(veracross_api.insert_from_value_list(**data), sys.stdout)
 ```
 
 [docs]: https://api-docs.veracross.com/docs/docs/docs/concepts/general-principles.md

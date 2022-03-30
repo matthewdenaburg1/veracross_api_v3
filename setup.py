@@ -19,8 +19,7 @@ setup(
     license="MIT License",
     author="Matthew Denaburg",
     author_email=["matthew.denaburg@ssfs.org"],
-    url="https://bitbucket.org/ssfs_tech/veracross_api",
-    download_url=f"https://bitbucket.org/ssfs_tech/veracross_api/get/v{__version__}.tar.gz",
+    url="https://github.com/matthewdenaburg1/veracross_api_v3",
     keywords=["Veracross", "API", "API v3"],
     install_requires=["requests"],
     classifiers=[
